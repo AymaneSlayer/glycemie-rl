@@ -1,0 +1,10 @@
+controller,category,events,duration_mean,nadir_mean,after_meal_bolus_pct,basal_during_mean
+basal_bolus,adult,6,205.0,47.84,0.0,1.13
+basal_bolus,child,14,121.29,58.73,7.14,0.39
+pid,adult,4,177.0,44.17,0.0,0.09
+pid,child,14,72.0,62.38,7.14,0.02
+ppo,adult,5,195.6,49.31,0.0,0.13
+ppo,child,19,69.32,62.06,15.79,0.04
+sac,adolescent,1,54.0,68.0,0.0,0.0
+sac,adult,7,104.14,51.81,0.0,0.0
+sac,child,20,84.75,55.42,15.0,0.03

@@ -1,0 +1,5 @@
+controller,adolescent,adult,child
+basal_bolus,62.0,97.3,71.5
+pid,63.9,95.8,75.8
+ppo,65.4,93.7,77.5
+sac,69.4,97.1,65.6

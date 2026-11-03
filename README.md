@@ -104,8 +104,8 @@ Pour utiliser un GPU NVIDIA, installez la version CUDA de PyTorch en suivant [py
 
 ```bash
 python -m src.data
-python -m src.train --algo ppo --timesteps 1000000
-python -m src.train --algo sac --timesteps 1000000
+python -m src.train --algo ppo --timesteps 500000
+python -m src.train --algo sac --timesteps 300000
 python -m src.evaluate
 python -m src.explain
 ```
@@ -137,7 +137,44 @@ python -m pytest tests
 
 ## Résultats
 
-À compléter après l'entraînement complet.
+Entraînement : PPO 500 000 pas (43 min), SAC 300 000 pas (61 min), sur une RTX 4060 Laptop avec 8 environnements en parallèle. Le meilleur modèle de chaque algorithme est celui qui obtient la meilleure récompense moyenne sur la validation.
+
+### Validation (6 patients × 3 journées)
+
+| Contrôleur | Dans la cible % | Hypo <70 % | Hypo <54 % | Hyper >180 % | Risque | Échecs % |
+|---|---|---|---|---|---|---|
+| PPO | **78,9** | 4,0 | 1,5 | 17,2 | **6,01** | 28 |
+| SAC | 77,4 | 8,7 | 2,3 | **14,0** | 6,08 | 50 |
+| PID | 78,5 | **3,3** | **1,2** | 18,2 | 6,20 | 28 |
+| Basal-bolus | 77,0 | 6,5 | 2,9 | 16,6 | 6,64 | **22** |
+
+Sur la validation, PPO est retenu : meilleur temps dans la cible et plus faible indice de risque.
+
+### Test final (6 patients jamais vus × 5 journées)
+
+| Contrôleur | Dans la cible % | Hypo <70 % | Hypo <54 % | Hyper >180 % | Risque | Échecs % |
+|---|---|---|---|---|---|---|
+| SAC | **89,6** | 6,1 | 1,2 | **4,4** | **3,10** | 17 |
+| PID | 85,3 | **4,1** | **1,0** | 10,7 | 3,92 | 7 |
+| Basal-bolus | 84,5 | 6,8 | 2,3 | 8,7 | 3,97 | **3** |
+| PPO | 83,0 | 5,4 | 1,2 | 11,7 | 4,07 | **3** |
+
+Un échec est une journée où la glycémie sort de [40, 500] mg/dL, ce qui arrête la simulation.
+
+### Lecture
+
+- Le modèle retenu sur la validation (PPO) ne fait pas mieux que le PID sur le test. SAC, moins bon sur la validation, est le meilleur sur le test : +4,3 points dans la cible et −21 % de risque par rapport au PID, mais avec plus d'hypoglycémies et d'échecs. Le classement change entre validation et test parce que chaque ensemble ne compte que 6 patients, très différents les uns des autres. Nous n'avons pas changé de modèle après avoir vu le test, pour ne pas créer de fuite.
+- Quand un agent fait mieux que le PID, c'est surtout en réduisant les hyperglycémies, au prix d'un peu plus d'hypoglycémies.
+- Les échecs se concentrent sur quelques patients (child#008 et adolescent#007 en validation, adult#009 en test) et touchent aussi les contrôleurs classiques : ils dépendent surtout du patient, pas seulement du contrôleur.
+- La version v1 (agent seul, sans PID) égalait le PID sans le dépasser. La formulation résiduelle et la nouvelle récompense ont permis d'aller au-delà.
+
+### Interprétabilité
+
+- **SAC** corrige fortement le PID. Sa correction de basale dépend surtout des mesures CGM des 15 à 30 dernières minutes, de l'insuline active et de la pente du glucose, ce qui correspond au raisonnement d'un diabétologue. Son multiplicateur de bolus dépend surtout de l'heure de la journée et de la glycémie avant le repas.
+- **PPO** reste très proche du PID : ses valeurs SHAP sont environ 7 fois plus faibles que celles de SAC. C'est ce qui explique qu'il fasse presque comme le PID.
+- **Hypoglycémies du test** : chez tous les contrôleurs, elles touchent surtout les enfants et un adulte (adult#009). Moins de 16 % surviennent dans les 2 h suivant un bolus, et pendant l'hypo la basale est presque coupée : elles viennent d'insuline accumulée plus tôt, que le contrôleur ne peut plus retirer.
+
+Figures : `results/shap_bar_*.png`, `results/shap_beeswarm_*.png`, `results/hypo_events_test.png`, `results/boxplot_test.png`, `results/trace_test_*.png`, `results/learning_curves.png`.
 
 ## Limites
 
