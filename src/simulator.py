@@ -79,9 +79,9 @@ class Simulator:
         correction = max(glucose - config.BG_TARGET, 0) / self.profile["cf"] if glucose > 150 else 0.0
         return carbs / self.profile["cr"] + correction
 
-    def step(self, basal_rate):
+    def step(self, basal_rate, bolus_factor=1.0):
         basal_rate = float(np.clip(basal_rate, 0.0, self.profile["basal"] * config.MAX_BASAL_FACTOR))
-        bolus_units = self.bolus_for(self.pending_meal)
+        bolus_units = self.bolus_for(self.pending_meal) * float(bolus_factor)
         action = Action(basal=basal_rate, bolus=bolus_units / config.SAMPLE_TIME)
         step = self.env.step(action, reward_fun=lambda h: 0.0)
         info = step.info

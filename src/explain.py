@@ -27,11 +27,20 @@ def _collect(args):
     return np.array(feats)
 
 
-def policy_fn(model, scaler):
+OUTPUTS = {
+    "basal": ("correction de basale (× basale du patient)", lambda a: config.RESIDUAL_SCALE * a),
+    "bolus": ("multiplicateur du bolus de repas", lambda a: 2.0 ** (config.BOLUS_LOG2_RANGE * a)),
+}
+
+
+def policy_fn(model, scaler, output):
+    idx = list(OUTPUTS).index(output)
+    transform = OUTPUTS[output][1]
+
     def f(X):
         obs = scaler.transform(X)
         actions, _ = model.predict(obs, deterministic=True)
-        return np.clip(1 + 2 * np.clip(actions[:, 0], -1, 1), 0, config.MAX_BASAL_FACTOR)
+        return transform(np.clip(actions[:, idx], -1, 1))
     return f
 
 
@@ -45,24 +54,28 @@ def explain_model(algo, n_explain, n_background, seeds, workers):
     X_train = pd.read_csv(FEATURES_PATH).to_numpy()
     background = X_train[rng.choice(len(X_train), n_background, replace=False)]
     ctrl = RL(model_path)
-    f = policy_fn(ctrl.model, Scaler.load(SCALER_PATH))
-    explainer = shap.Explainer(f, shap.maskers.Independent(background), feature_names=FEATURE_NAMES, algorithm="permutation")
-    sv = explainer(X_test)
+    scaler = Scaler.load(SCALER_PATH)
     out = config.RESULTS_DIR
-    plt.figure()
-    shap.plots.beeswarm(sv, max_display=12, show=False)
-    plt.title(f"SHAP – {algo.upper()} (sortie : multiplicateur de basale)")
-    plt.tight_layout()
-    plt.savefig(out / f"shap_beeswarm_{algo}.png", dpi=150)
-    plt.close()
-    plt.figure()
-    shap.plots.bar(sv, max_display=12, show=False)
-    plt.title(f"Importance moyenne |SHAP| – {algo.upper()}")
-    plt.tight_layout()
-    plt.savefig(out / f"shap_bar_{algo}.png", dpi=150)
-    plt.close()
-    imp = pd.Series(np.abs(sv.values).mean(axis=0), index=FEATURE_NAMES).sort_values(ascending=False)
-    imp.rename("mean_abs_shap").to_csv(out / f"shap_importance_{algo}.csv")
+    importances = {}
+    for output, (label, _) in OUTPUTS.items():
+        f = policy_fn(ctrl.model, scaler, output)
+        explainer = shap.Explainer(f, shap.maskers.Independent(background), feature_names=FEATURE_NAMES, algorithm="permutation")
+        sv = explainer(X_test)
+        plt.figure()
+        shap.plots.beeswarm(sv, max_display=12, show=False)
+        plt.title(f"SHAP – {algo.upper()} ({label})")
+        plt.tight_layout()
+        plt.savefig(out / f"shap_beeswarm_{algo}_{output}.png", dpi=150)
+        plt.close()
+        plt.figure()
+        shap.plots.bar(sv, max_display=12, show=False)
+        plt.title(f"Importance |SHAP| – {algo.upper()} ({label})")
+        plt.tight_layout()
+        plt.savefig(out / f"shap_bar_{algo}_{output}.png", dpi=150)
+        plt.close()
+        importances[output] = np.abs(sv.values).mean(axis=0)
+    imp = pd.DataFrame(importances, index=FEATURE_NAMES).sort_values("basal", ascending=False)
+    imp.to_csv(out / f"shap_importance_{algo}.csv")
     return imp
 
 

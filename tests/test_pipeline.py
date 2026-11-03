@@ -6,7 +6,8 @@ import pytest
 warnings.filterwarnings("ignore")
 
 from src import config
-from src.controllers import PID, BasalBolus, action_to_basal
+from src.controllers import PID, BasalBolus, apply_action
+from src.env import GlucoseEnv, reward_fn
 from src.features import FEATURE_NAMES, Scaler, raw_features
 from src.metrics import episode_metrics
 from src.rollout import run_episode
@@ -24,17 +25,42 @@ def test_seeds_are_disjoint():
     assert not set(config.VAL_SEEDS) & set(config.TEST_SEEDS)
 
 
-def test_action_mapping():
-    assert action_to_basal([0.0], 1.0) == pytest.approx(1.0)
-    assert action_to_basal([-1.0], 1.0) == 0.0
-    assert action_to_basal([1.0], 1.0) == pytest.approx(config.MAX_BASAL_FACTOR)
+def test_zero_action_reproduces_pid():
+    assert apply_action([0.0, 0.0], 0.7, 1.0) == pytest.approx((0.7, 1.0))
+    assert apply_action([-1.0, 0.0], 0.5, 1.0)[0] == 0.0
+    assert apply_action([1.0, 0.0], 2.9, 1.0)[0] == pytest.approx(config.MAX_BASAL_FACTOR)
+    lo, hi = apply_action([0, -1], 1, 1)[1], apply_action([0, 1], 1, 1)[1]
+    assert lo == pytest.approx(2 ** -config.BOLUS_LOG2_RANGE)
+    assert hi == pytest.approx(2 ** config.BOLUS_LOG2_RANGE)
+
+
+def test_env_with_zero_action_matches_pid():
+    env = GlucoseEnv(["adult#003"], [7])
+    env.reset(seed=0)
+    bg_env = []
+    done = False
+    while not done:
+        _, _, term, trunc, info = env.step(np.zeros(2, dtype=np.float32))
+        bg_env.append(info["bg"])
+        done = term or trunc
+    bg_pid = run_episode(PID(), "adult#003", 7)["bg"].to_numpy()
+    np.testing.assert_allclose(bg_env, bg_pid)
+
+
+def test_reward_sign():
+    sim = Simulator("adult#001", seed=0)
+    sim.bg[-1] = 120
+    sim.terminated = False
+    assert reward_fn(sim) > 0
+    sim.bg[-1] = 45
+    assert reward_fn(sim) < 0
 
 
 def test_features_shape():
     sim = Simulator("adult#001", seed=0)
     for _ in range(5):
         sim.step(sim.profile["basal"])
-    f = raw_features(sim)
+    f = raw_features(sim, sim.profile["basal"])
     assert f.shape == (len(FEATURE_NAMES),)
     assert np.isfinite(f).all()
 

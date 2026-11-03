@@ -5,10 +5,10 @@ import numpy as np
 from . import config
 
 CGM_FEATURES = [f"cgm_t-{i * config.SAMPLE_TIME}" for i in range(config.HISTORY - 1, -1, -1)]
-FEATURE_NAMES = CGM_FEATURES + ["cgm_slope", "iob_rel", "cob_rel", "hour_sin", "hour_cos"]
+FEATURE_NAMES = CGM_FEATURES + ["cgm_slope", "iob_rel", "cob_rel", "meal_now_rel", "pid_rel", "hour_sin", "hour_cos"]
 
 
-def raw_features(sim):
+def raw_features(sim, pid_basal):
     cgm = np.array(sim.cgm[-config.HISTORY:], dtype=np.float64)
     if cgm.size < config.HISTORY:
         cgm = np.concatenate([np.full(config.HISTORY - cgm.size, cgm[0]), cgm])
@@ -16,10 +16,12 @@ def raw_features(sim):
     hourly_basal = sim.profile["basal"] * 60
     iob_rel = sim.iob() / hourly_basal
     cob_rel = sim.cob() / sim.profile["cr"] / hourly_basal
+    meal_now_rel = sim.pending_meal / sim.profile["cr"] / hourly_basal
+    pid_rel = pid_basal / sim.profile["basal"]
     t = sim.times[-1]
     hour = t.hour + t.minute / 60
     angle = 2 * np.pi * hour / 24
-    return np.concatenate([cgm, [slope, iob_rel, cob_rel, np.sin(angle), np.cos(angle)]])
+    return np.concatenate([cgm, [slope, iob_rel, cob_rel, meal_now_rel, pid_rel, np.sin(angle), np.cos(angle)]])
 
 
 class Scaler:

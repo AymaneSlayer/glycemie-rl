@@ -89,7 +89,7 @@ summary = config.RESULTS_DIR / "summary_test.csv"
 if summary.exists():
     st.subheader("Résultats globaux sur les patients de test")
     st.dataframe(pd.read_csv(summary, index_col=0).round(2), use_container_width=True)
-    for img in ["boxplot_test.png", "learning_curves.png", "shap_bar_ppo.png", "shap_bar_sac.png"]:
+    for img in ["boxplot_test.png", "learning_curves.png", "shap_bar_ppo_basal.png", "shap_bar_ppo_bolus.png", "shap_bar_sac_basal.png", "shap_bar_sac_bolus.png"]:
         p = config.RESULTS_DIR / img
         if p.exists():
             st.image(str(p))

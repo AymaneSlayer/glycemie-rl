@@ -38,11 +38,14 @@ Les journées commencent à 6 h et durent 24 h. Les repas (petit-déjeuner, déj
 | Élément | Choix |
 |---|---|
 | Pas de décision | 3 minutes (480 par journée) |
-| Observation (17 variables) | 12 dernières mesures CGM (36 min), pente CGM, insuline active (IOB) et glucides actifs (COB) relatifs au patient, heure (sin, cos) |
-| Action | `a ∈ [-1, 1]`, basale = basale du patient × clip(1 + 2a, 0, 3) |
-| Bolus de repas | calculé par la formule classique (glucides / CR + correction) : système **hybride**, comme les pompes commerciales |
-| Récompense | −indice de risque de Kovatchev / 10, et −100 si la glycémie sort de [40, 500] mg/dL (fin de l'épisode) |
+| Approche | **Apprentissage résiduel** : l'agent corrige les décisions du PID au lieu de partir de zéro. Une action nulle reproduit exactement le PID |
+| Observation (19 variables) | 12 dernières mesures CGM (36 min), pente CGM, insuline active (IOB), glucides actifs (COB) et repas en cours relatifs au patient, sortie du PID relative à la basale du patient, heure (sin, cos) |
+| Action (2 dimensions) | `a₀ ∈ [-1, 1]` : basale = clip(basale PID + a₀ × basale du patient, 0, 3 × basale du patient). `a₁ ∈ [-1, 1]` : bolus de repas × 2^(0,6·a₁), soit entre ×0,66 et ×1,52 |
+| Bolus de repas | formule classique (glucides / CR + correction), ajustée par l'agent : système **hybride**, comme les pompes commerciales |
+| Récompense | 1 − risque de Kovatchev / 7,8, bornée à −5 : positive dans la cible 70–180, nulle à ses bords, négative au-delà. −100 et fin de l'épisode si la glycémie sort de [40, 500] mg/dL. Comme la récompense est positive dans la cible, arrêter tôt l'épisode n'est jamais avantageux |
 | Algorithmes | PPO et SAC ([Stable-Baselines3](https://stable-baselines3.readthedocs.io)), réseaux 64×64 |
+
+Une première version (v1), où l'agent pilotait seul la basale avec une récompense −risque/10, égalait le PID sans le dépasser. Ses modèles et résultats sont conservés dans `models/v1/` et `results/v1/`.
 
 ## Contrôleurs comparés
 
@@ -50,8 +53,8 @@ Les journées commencent à 6 h et durent 24 h. Les repas (petit-déjeuner, déj
 |---|---|
 | `basal_bolus` | Référence simple : basale fixe et bolus aux repas |
 | `pid` | Référence classique : basale ajustée par un régulateur PID, coupure sous 80 mg/dL, bolus aux repas |
-| `ppo` | Agent PPO |
-| `sac` | Agent SAC |
+| `ppo` | Agent PPO (correction du PID et du bolus) |
+| `sac` | Agent SAC (correction du PID et du bolus) |
 
 ## Métriques
 
@@ -59,7 +62,7 @@ Temps dans la cible 70–180 (TIR), temps en hypoglycémie < 70 et < 54, temps e
 
 ## Interprétabilité
 
-`src/explain.py` calcule les valeurs **SHAP** (méthode par permutation) de la politique : quelles variables augmentent ou diminuent le multiplicateur de basale. Il analyse aussi chaque épisode d'hypoglycémie des patients de test (durée, nadir, insuline et repas dans les 2 h précédentes).
+`src/explain.py` calcule les valeurs **SHAP** (méthode par permutation) de la politique, pour ses deux sorties : la correction de basale et le multiplicateur de bolus. Il analyse aussi chaque épisode d'hypoglycémie des patients de test (durée, nadir, insuline et repas dans les 2 h précédentes).
 
 ## Structure
 

@@ -22,7 +22,7 @@ ALGOS = {"ppo": PPO, "sac": SAC}
 
 HYPERPARAMS = {
     "ppo": dict(n_steps=480, batch_size=960, n_epochs=10, learning_rate=3e-4, gamma=0.99, gae_lambda=0.95,
-                clip_range=0.2, ent_coef=0.0, policy_kwargs=dict(net_arch=[64, 64], log_std_init=-1.0)),
+                clip_range=0.2, ent_coef=0.0, policy_kwargs=dict(net_arch=[64, 64], log_std_init=-1.5)),
     "sac": dict(buffer_size=300_000, learning_starts=10_000, batch_size=256, learning_rate=3e-4, gamma=0.99,
                 tau=0.005, train_freq=1, gradient_steps=4, policy_kwargs=dict(net_arch=[64, 64])),
 }

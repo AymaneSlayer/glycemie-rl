@@ -4,9 +4,11 @@ from . import config
 from .features import SCALER_PATH, Scaler, raw_features
 
 
-def action_to_basal(action, basal_ref):
-    a = float(np.clip(np.asarray(action).reshape(-1)[0], -1.0, 1.0))
-    return basal_ref * float(np.clip(1.0 + 2.0 * a, 0.0, config.MAX_BASAL_FACTOR))
+def apply_action(action, pid_basal, basal_ref):
+    a = np.clip(np.asarray(action, dtype=np.float64).reshape(-1), -1.0, 1.0)
+    basal = float(np.clip(pid_basal + config.RESIDUAL_SCALE * a[0] * basal_ref, 0.0, config.MAX_BASAL_FACTOR * basal_ref))
+    factor = float(2.0 ** (config.BOLUS_LOG2_RANGE * a[1])) if a.size > 1 else 1.0
+    return basal, factor
 
 
 class Controller:
@@ -17,6 +19,9 @@ class Controller:
 
     def act(self, sim):
         raise NotImplementedError
+
+    def bolus_factor(self):
+        return 1.0
 
 
 class BasalBolus(Controller):
@@ -46,7 +51,7 @@ class PID(Controller):
         u = sim.profile["basal"] + scale * (self.kp * err + self.ki * self.integral + self.kd * deriv)
         if g < config.BG_LOW + 10:
             u = 0.0
-        return u
+        return float(np.clip(u, 0.0, config.MAX_BASAL_FACTOR * sim.profile["basal"]))
 
 
 class RL(Controller):
@@ -56,13 +61,22 @@ class RL(Controller):
         self.model = algo.load(str(model_path), device="cpu")
         self.scaler = Scaler.load(SCALER_PATH)
         self.name = name or model_path.stem
+        self.pid = PID()
+        self._factor = 1.0
 
-    def observe(self, sim):
-        return self.scaler.transform(raw_features(sim)[None, :])[0]
+    def reset(self, sim):
+        self.pid.reset(sim)
 
     def act(self, sim):
-        action, _ = self.model.predict(self.observe(sim), deterministic=True)
-        return action_to_basal(action, sim.profile["basal"])
+        pid_basal = self.pid.act(sim)
+        self.last_features = raw_features(sim, pid_basal)
+        obs = self.scaler.transform(self.last_features[None, :])[0]
+        action, _ = self.model.predict(obs, deterministic=True)
+        basal, self._factor = apply_action(action, pid_basal, sim.profile["basal"])
+        return basal
+
+    def bolus_factor(self):
+        return self._factor
 
 
 def baselines():
