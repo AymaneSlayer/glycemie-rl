@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("PYTHONWARNINGS", "ignore")
+
 import argparse
 import json
 import time
@@ -8,7 +12,6 @@ import torch
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.logger import configure
-from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
@@ -29,7 +32,7 @@ def make_env(patients, seeds, rank, seed):
     warnings.filterwarnings("ignore")
     env = GlucoseEnv(patients, seeds)
     env.reset(seed=seed + rank)
-    return Monitor(env)
+    return env
 
 
 def vec_env(patients, seeds, n, seed, subproc):
@@ -37,9 +40,9 @@ def vec_env(patients, seeds, n, seed, subproc):
     return VecMonitor(SubprocVecEnv(fns) if subproc and n > 1 else DummyVecEnv(fns))
 
 
-def val_env(subproc):
+def val_env():
     fns = [partial(make_env, [p], list(config.VAL_SEEDS), 0, 1000) for p in config.VAL_PATIENTS]
-    return VecMonitor(SubprocVecEnv(fns) if subproc else DummyVecEnv(fns))
+    return VecMonitor(DummyVecEnv(fns))
 
 
 class SaveBest(BaseCallback):
@@ -59,7 +62,7 @@ def train(algo, timesteps, n_envs, eval_freq, seed, subproc=True, device="cuda")
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
     log_dir = config.MODELS_DIR / f"{algo}_logs"
     env = vec_env(config.TRAIN_PATIENTS, list(config.TRAIN_SEEDS), n_envs, seed, subproc)
-    eval_env = val_env(subproc)
+    eval_env = val_env()
     model = ALGOS[algo]("MlpPolicy", env, seed=seed, verbose=0, device=device, **HYPERPARAMS[algo])
     model.set_logger(configure(str(log_dir), ["csv", "stdout"]))
     best_path = config.MODELS_DIR / f"{algo}_best.zip"
@@ -89,7 +92,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--algo", choices=list(ALGOS), default="ppo")
     parser.add_argument("--timesteps", type=int, default=1_000_000)
-    parser.add_argument("--n-envs", type=int, default=12)
+    parser.add_argument("--n-envs", type=int, default=8)
     parser.add_argument("--eval-freq", type=int, default=50_000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")

@@ -120,7 +120,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", choices=["val", "test"], default="test")
     parser.add_argument("--days", type=int, default=len(config.TEST_SEEDS))
-    parser.add_argument("--workers", type=int, default=None)
+    parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args()
     seeds = list(config.TEST_SEEDS if args.split == "test" else config.VAL_SEEDS)[: args.days]
     patients = config.SPLITS[args.split]

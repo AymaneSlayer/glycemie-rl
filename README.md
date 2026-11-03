@@ -116,7 +116,7 @@ python -m src.explain
 
 Toutes les simulations sont déterministes : une même graine donne la même journée.
 
-Options utiles : `--n-envs` (environnements en parallèle, 12 par défaut), `--eval-freq`, `--seed`, `--device`.
+Options utiles : `--n-envs` (environnements en parallèle, 8 par défaut ; chacun utilise environ 600 Mo de RAM), `--eval-freq`, `--seed`, `--device`.
 
 ## Démonstration
 

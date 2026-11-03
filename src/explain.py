@@ -128,7 +128,7 @@ def main():
     parser.add_argument("--n-explain", type=int, default=500)
     parser.add_argument("--n-background", type=int, default=100)
     parser.add_argument("--days", type=int, default=2)
-    parser.add_argument("--workers", type=int, default=None)
+    parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args()
     config.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     seeds = list(config.TEST_SEEDS)[: args.days]

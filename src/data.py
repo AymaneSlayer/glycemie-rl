@@ -41,7 +41,7 @@ def generate(days=3, workers=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=3)
-    parser.add_argument("--workers", type=int, default=None)
+    parser.add_argument("--workers", type=int, default=6)
     args = parser.parse_args()
     sims = generate(args.days, args.workers)
     print(f"{len(sims)} lignes -> {SIM_PATH}")
